@@ -54,7 +54,7 @@ def game_keyboard():
         [InlineKeyboardButton(text="📈 Узнать спрос", callback_data="game_demand")],
         [InlineKeyboardButton(text="🔄 Обновить товар/цену", callback_data="game_refresh")],
         [InlineKeyboardButton(text="🤝 Сделать продажу", callback_data="game_sell")],
-        [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_main")]
+        [InlineKeyboardButton(text="🔙 Вернуться", callback_data="back_to_main")]
     ])
 
 def shop_keyboard():
@@ -66,6 +66,13 @@ def shop_keyboard():
         [InlineKeyboardButton(text="🔙 Назад", callback_data="game_menu")]
     ])
 
+def moderation_keyboard(ad_id):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Принять", callback_data=f"approve_{ad_id}"),
+            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{ad_id}")
+        ]
+    ])
 
 # ========== ПРИВЕТСТВИЕ ==========
 
@@ -75,11 +82,10 @@ async def cmd_start(message: types.Message):
     args = message.text.split()
     referrer_id = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
     add_user(user.id, user.username, referrer_id)
-
     await message.answer(
         "✨ *Добро пожаловать в ReSell!* ✨\n\n"
-        "👋 Привет! Меня создал предприниматель, который прошёл через все трудности товарного бизнеса.\n"
-        "Я — его система, помогающая молодым продавцам торговать легко.\n\n"
+        "👋 Привет! Я создан предпринимателем, который прошёл через все трудности товарного бизнеса.\n"
+        "Я помогаю молодым продавцам торговать легко.\n\n"
         "📌 *Что я умею:*\n"
         "• Принимать объявления\n"
         "• Реферальная программа\n"
@@ -88,7 +94,6 @@ async def cmd_start(message: types.Message):
         reply_markup=main_keyboard(user.id),
         parse_mode=ParseMode.MARKDOWN
     )
-
 
 # ========== ОБЪЯВЛЕНИЯ ==========
 
@@ -130,7 +135,6 @@ async def handle_description(message: types.Message):
         except:
             pass
 
-
 # ========== РЕФЕРАЛЫ ==========
 
 @dp.callback_query(F.data == "referral")
@@ -162,14 +166,13 @@ async def my_profile(callback: types.CallbackQuery):
     text = (
         "👤 *Ваш профиль*\n\n"
         f"💰 Баланс: *{balance} руб.*\n"
-        f"👥 Приглашено: *{referrals}* чел.\n"
-        f"🆔 ID: `{user_id}`"
+        f"👥 Вы пригласили: *{referrals}* чел.\n"
+        f"🆔 Ваш ID: `{user_id}`"
     )
     await callback.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=back_keyboard())
     await callback.answer()
 
-
-# ========== ТОРГОВЫЙ СИМУЛЯТОР ==========
+# ========== ТОРГОВЫЙ СИМУЛЯТОР (ПОЛНАЯ ВЕРСИЯ) ==========
 
 @dp.callback_query(F.data == "game_menu")
 async def game_menu(callback: types.CallbackQuery):
@@ -177,15 +180,13 @@ async def game_menu(callback: types.CallbackQuery):
     xp_to_level = state['level'] * 100
     text = (
         "🎮 *ТОРГОВЫЙ РЕАЛИТИ* 🎮\n\n"
-        "Вы управляете своим товаром.\n"
-        "Спрос меняется каждый раз.\n"
-        "Цену можно подстраивать.\n\n"
+        "Управляй своим товаром, учитывай спрос и побеждай конкурентов.\n\n"
         f"📊 *Ваш бизнес:*\n"
         f"Уровень: *{state['level']}*\n"
-        f"Опыт: *{state['xp']}/{xp_to_level}*\n"
+        f"Опыт: *{state['xp']} / {xp_to_level}*\n"
         f"Товар: *{state['product']}*\n"
-        f"Цена: *{state['price']}* руб.\n"
-        f"Спрос: *{state['demand']}*\n\n"
+        f"💰 Цена: *{state['price']}* руб.\n"
+        f"📈 Спрос: *{state['demand']}*\n\n"
         "👇 *Выбери действие:*"
     )
     await callback.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=game_keyboard())
@@ -193,7 +194,7 @@ async def game_menu(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "game_shop")
 async def game_shop(callback: types.CallbackQuery):
-    await callback.message.edit_text("🏪 *Выберите товар для продажи:*", parse_mode=ParseMode.MARKDOWN, reply_markup=shop_keyboard())
+    await callback.message.edit_text("🏪 *Выбери товар для продажи:*", parse_mode=ParseMode.MARKDOWN, reply_markup=shop_keyboard())
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("set_product_"))
@@ -207,23 +208,23 @@ async def set_product_handler(callback: types.CallbackQuery):
     new_product = product_map.get(callback.data)
     if new_product:
         set_product(callback.from_user.id, new_product)
-        await callback.answer(f"✅ Товар изменён на {new_product}!", show_alert=True)
+        await callback.answer(f"✅ Товар изменён на {new_product}!")
+        await game_menu(callback)
     else:
-        await callback.answer("❌ Ошибка выбора товара.", show_alert=True)
-    await game_menu(callback)
+        await callback.answer("❌ Ошибка", show_alert=True)
 
 @dp.callback_query(F.data == "game_demand")
 async def game_demand(callback: types.CallbackQuery):
     demands = ["критически низкий ❌", "низкий 📉", "средний 📊", "высокий 📈", "ажиотаж 🔥"]
     demand = random.choice(demands)
-    price = random.randint(50, 2000)
+    price = random.randint(100, 1000)
     set_demand_price(callback.from_user.id, demand, price)
     await callback.answer(f"📊 Спрос: {demand}\n💰 Цена: {price} руб.", show_alert=True)
     await game_menu(callback)
 
 @dp.callback_query(F.data == "game_refresh")
 async def game_refresh(callback: types.CallbackQuery):
-    new_price = random.randint(50, 2000)
+    new_price = random.randint(100, 1000)
     state = get_game_state(callback.from_user.id)
     set_demand_price(callback.from_user.id, state['demand'], new_price)
     await callback.answer(f"💰 Цена обновлена: {new_price} руб.", show_alert=True)
@@ -234,7 +235,7 @@ async def game_sell(callback: types.CallbackQuery):
     state = get_game_state(callback.from_user.id)
     profit = state['price'] - 50
     if profit <= 0:
-        await callback.answer("❌ Ты не сможешь заработать — цена слишком низкая.", show_alert=True)
+        await callback.answer("❌ Ты не можешь заработать — цена слишком низкая.", show_alert=True)
         return
 
     competitor_price = random.randint(int(state['price'] * 0.7), int(state['price'] * 1.5))
@@ -242,7 +243,7 @@ async def game_sell(callback: types.CallbackQuery):
         await callback.answer(
             f"❌ *Конкуренция!*\n"
             f"Конкурент продал по цене {competitor_price} руб.\n"
-            f"Ваш товар не купили.",
+            f"Твой товар не купили.",
             show_alert=True
         )
         return
@@ -269,8 +270,7 @@ async def game_sell(callback: types.CallbackQuery):
     )
     await game_menu(callback)
 
-
-# ========== МОДЕРАЦИЯ ==========
+# ========== МОДЕРАЦИЯ (ИСПРАВЛЕНА И НЕ КОНФЛИКТУЕТ) ==========
 
 @dp.message(Command("moderate"))
 async def cmd_moderate(message: types.Message):
@@ -286,23 +286,17 @@ async def cmd_moderate(message: types.Message):
 
     for ad in pending:
         ad_id, user_id_ad, username, photo_id, desc = ad
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="✅ Принять", callback_data=f"approve_{ad_id}"),
-                InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{ad_id}")
-            ]
-        ])
         await message.answer_photo(
             photo=photo_id,
             caption=f"📦 *Объявление #{ad_id}*\n👤 От: @{username}\n📝 {desc}",
-            reply_markup=keyboard,
+            reply_markup=moderation_keyboard(ad_id),
             parse_mode=ParseMode.MARKDOWN
         )
 
 @dp.callback_query(F.data.startswith("approve_"))
 async def approve_ad(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Нет прав!")
+        await callback.answer("⛔ Нет прав!", show_alert=True)
         return
 
     ad_id = int(callback.data.split("_")[1])
@@ -321,14 +315,13 @@ async def approve_ad(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("reject_"))
 async def reject_ad(callback: types.CallbackQuery):
     if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Нет прав!")
+        await callback.answer("⛔ Нет прав!", show_alert=True)
         return
 
     ad_id = int(callback.data.split("_")[1])
     update_ad_status(ad_id, "rejected")
     await callback.message.edit_caption("❌ Объявление отклонено.")
     await callback.answer()
-
 
 # ========== НАЗАД ==========
 
@@ -341,11 +334,10 @@ async def back_to_main(callback: types.CallbackQuery):
     )
     await callback.answer()
 
-
 # ========== ЗАПУСК ==========
 
 async def main():
-    print("🚀 Бот ReSell запущен и готов к работе!")
+    print("🚀 Бот ReSell успешно запущен!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
