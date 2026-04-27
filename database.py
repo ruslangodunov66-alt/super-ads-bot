@@ -4,7 +4,6 @@ from datetime import datetime
 DB_NAME = "ads_bot.db"
 
 def init_db():
-    """Создаёт таблицы при первом запуске"""
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     
@@ -28,7 +27,9 @@ def init_db():
             username TEXT,
             reg_date TIMESTAMP,
             referrer_id INTEGER,
-            balance INTEGER DEFAULT 0
+            balance INTEGER DEFAULT 0,
+            game_score INTEGER DEFAULT 0,
+            game_energy INTEGER DEFAULT 100
         )
     ''')
     
@@ -39,30 +40,27 @@ def init_db():
         )
     ''')
     
+    # Добавляем админа (замените на свой ID)
+    cur.execute('INSERT OR IGNORE INTO admins (user_id) VALUES (1475910449)')
+    
     conn.commit()
     conn.close()
 
 def add_user(user_id, username, referrer_id=None):
-    """Добавляет нового пользователя"""
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    
     cur.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
     if not cur.fetchone():
         cur.execute('''
-            INSERT INTO users (user_id, username, reg_date, referrer_id, balance)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (user_id, username, datetime.now(), referrer_id, 0))
-        
-        # Если есть реферер, начисляем ему бонус
+            INSERT INTO users (user_id, username, reg_date, referrer_id, balance, game_score, game_energy)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, username, datetime.now(), referrer_id, 0, 0, 100))
         if referrer_id:
             cur.execute('UPDATE users SET balance = balance + 50 WHERE user_id = ?', (referrer_id,))
-    
     conn.commit()
     conn.close()
 
 def add_ad(user_id, username, photo_id, description):
-    """Добавляет объявление в базу"""
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute('''
@@ -74,7 +72,6 @@ def add_ad(user_id, username, photo_id, description):
     return cur.lastrowid
 
 def get_pending_ads():
-    """Получает все объявления на модерации"""
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute('SELECT id, user_id, username, photo_id, description FROM ads WHERE status = "pending" ORDER BY created_at')
@@ -82,8 +79,17 @@ def get_pending_ads():
     conn.close()
     return ads
 
+def get_ad_by_id(ad_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute('SELECT user_id, username, photo_id, description FROM ads WHERE id = ?', (ad_id,))
+    result = cur.fetchone()
+    conn.close()
+    if result:
+        return {'user_id': result[0], 'username': result[1], 'photo_id': result[2], 'description': result[3]}
+    return None
+
 def update_ad_status(ad_id, status):
-    """Обновляет статус объявления"""
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute('UPDATE ads SET status = ? WHERE id = ?', (status, ad_id))
@@ -91,7 +97,6 @@ def update_ad_status(ad_id, status):
     conn.close()
 
 def get_user_balance(user_id):
-    """Возвращает баланс пользователя"""
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute('SELECT balance FROM users WHERE user_id = ?', (user_id,))
@@ -99,8 +104,14 @@ def get_user_balance(user_id):
     conn.close()
     return result[0] if result else 0
 
+def update_user_balance(user_id, amount):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (amount, user_id))
+    conn.commit()
+    conn.close()
+
 def get_referral_count(user_id):
-    """Сколько пользователей пригласил"""
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute('SELECT COUNT(*) FROM users WHERE referrer_id = ?', (user_id,))
@@ -109,10 +120,24 @@ def get_referral_count(user_id):
     return count
 
 def is_admin(user_id):
-    """Проверяет, является ли пользователь админом"""
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute('SELECT user_id FROM admins WHERE user_id = ?', (user_id,))
     result = cur.fetchone()
     conn.close()
     return result is not None
+
+def get_game_data(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute('SELECT game_score, game_energy FROM users WHERE user_id = ?', (user_id,))
+    result = cur.fetchone()
+    conn.close()
+    return {'score': result[0], 'energy': result[1]} if result else {'score': 0, 'energy': 100}
+
+def update_game_data(user_id, score_change, energy_change):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute('UPDATE users SET game_score = game_score + ?, game_energy = game_energy + ? WHERE user_id = ?', (score_change, energy_change, user_id))
+    conn.commit()
+    conn.close()
