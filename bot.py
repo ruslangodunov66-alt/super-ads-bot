@@ -9,7 +9,7 @@ from aiogram.enums import ParseMode
 from database import init_db, add_user, add_ad, get_pending_ads, update_ad_status, get_user_balance, get_referral_count, is_admin
 
 # ========== НАСТРОЙКИ ==========
-BOT_TOKEN = os.environ.get('8792353409:AAElSEym-1092XLoSL5bIlwfNqySymIlvKE')
+BOT_TOKEN = os.environ.get('API_TOKEN')
 ADMIN_IDS = [1475910449]  # Ваш Telegram ID
 CHANNEL_ID = -1003767084450  # ID вашего канала
 # ================================
