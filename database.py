@@ -28,6 +28,7 @@ def init_db():
             reg_date TIMESTAMP,
             referrer_id INTEGER,
             balance INTEGER DEFAULT 0,
+            free_ads INTEGER DEFAULT 0,
             level INTEGER DEFAULT 1,
             xp INTEGER DEFAULT 0,
             product TEXT DEFAULT 'смартфон',
@@ -44,7 +45,6 @@ def init_db():
     ''')
     
     cur.execute('INSERT OR IGNORE INTO admins (user_id) VALUES (1475910449)')
-    
     conn.commit()
     conn.close()
 
@@ -53,12 +53,16 @@ def add_user(user_id, username, referrer_id=None):
     cur = conn.cursor()
     cur.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
     if not cur.fetchone():
+        # новому пользователю: 0 бесплатных выкладок
         cur.execute('''
-            INSERT INTO users (user_id, username, reg_date, referrer_id, balance, level, xp, product, demand, price)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, username, datetime.now(), referrer_id, 0, 1, 0, 'смартфон', 'средний', 100))
+            INSERT INTO users (user_id, username, reg_date, referrer_id, balance, free_ads, level, xp, product, demand, price)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, username, datetime.now(), referrer_id, 0, 0, 1, 0, 'смартфон', 'средний', 100))
+        
+        # реферер получает +1 бесплатную выкладку и +5✨ (бонус в игре)
         if referrer_id:
-            cur.execute('UPDATE users SET balance = balance + 50 WHERE user_id = ?', (referrer_id,))
+            cur.execute('UPDATE users SET free_ads = free_ads + 1 WHERE user_id = ?', (referrer_id,))
+            cur.execute('UPDATE users SET balance = balance + 5 WHERE user_id = ?', (referrer_id,))
     conn.commit()
     conn.close()
 
@@ -87,7 +91,9 @@ def get_ad_by_id(ad_id):
     cur.execute('SELECT user_id, username, photo_id, description FROM ads WHERE id = ?', (ad_id,))
     result = cur.fetchone()
     conn.close()
-    return {'user_id': result[0], 'username': result[1], 'photo_id': result[2], 'description': result[3]} if result else None
+    if result:
+        return {'user_id': result[0], 'username': result[1], 'photo_id': result[2], 'description': result[3]}
+    return None
 
 def update_ad_status(ad_id, status):
     conn = sqlite3.connect(DB_NAME)
@@ -108,6 +114,21 @@ def update_user_balance(user_id, amount):
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
     cur.execute('UPDATE users SET balance = balance + ? WHERE user_id = ?', (amount, user_id))
+    conn.commit()
+    conn.close()
+
+def get_free_ads(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute('SELECT free_ads FROM users WHERE user_id = ?', (user_id,))
+    result = cur.fetchone()
+    conn.close()
+    return result[0] if result else 0
+
+def use_free_ad(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute('UPDATE users SET free_ads = free_ads - 1 WHERE user_id = ? AND free_ads > 0', (user_id,))
     conn.commit()
     conn.close()
 
