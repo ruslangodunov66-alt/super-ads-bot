@@ -220,6 +220,16 @@ async def reject_ad(callback: types.CallbackQuery):
 
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
+# В главное меню добавьте проверку на админа
+def main_keyboard(user_id):
+    buttons = [
+        [InlineKeyboardButton(text="📝 Подать объявление", callback_data="submit_ad")],
+        [InlineKeyboardButton(text="⭐ Реферальная система", callback_data="referral")]
+    ]
+    if user_id in ADMIN_IDS:
+        buttons.append([InlineKeyboardButton(text="🛡 Модерация", callback_data="moderate")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 def back_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_main")]
@@ -234,6 +244,44 @@ async def back_to_main(callback: types.CallbackQuery):
         reply_markup=main_keyboard()
     )
     await callback.answer()
+
+@dp.callback_query(F.data.startswith("approve_"))
+async def approve_ad(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Нет прав!")
+        return
+    
+    ad_id = int(callback.data.split("_")[1])
+    
+    # Получаем объявление из базы (нужно добавить функцию get_ad_by_id)
+    # ad = get_ad_by_id(ad_id)
+    
+    # Публикуем в канал
+    await bot.send_photo(
+        chat_id=CHANNEL_ID,
+        photo=ad['photo_id'],
+        caption=f"📢 *НОВОЕ ОБЪЯВЛЕНИЕ!*\n\n{ad['description']}",
+        parse_mode="Markdown"
+    )
+    
+    update_ad_status(ad_id, "approved")
+    await callback.message.edit_caption("✅ Объявление одобрено и опубликовано в канале.")
+    await callback.answer()
+
+def get_ad_by_id(ad_id):
+    conn = sqlite3.connect(DB_NAME)
+    cur = conn.cursor()
+    cur.execute('SELECT user_id, username, photo_id, description FROM ads WHERE id = ?', (ad_id,))
+    result = cur.fetchone()
+    conn.close()
+    if result:
+        return {
+            'user_id': result[0],
+            'username': result[1],
+            'photo_id': result[2],
+            'description': result[3]
+        }
+    return None
 
 
 # ========== ЗАПУСК ==========
