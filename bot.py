@@ -116,6 +116,34 @@ async def reject_ad(callback: types.CallbackQuery):
     await callback.message.edit_caption("❌ *Отклонено.*", parse_mode=ParseMode.MARKDOWN)
     await callback.answer()
 
+@dp.callback_query(F.data == "moderate")
+async def moderate_button(callback: types.CallbackQuery):
+    """Обработчик кнопки 'Модерация' из главного меню"""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ У вас нет прав для модерации.", show_alert=True)
+        return
+
+    pending = get_pending_ads()
+    if not pending:
+        await callback.message.answer("📭 *Нет объявлений на модерации.*", parse_mode=ParseMode.MARKDOWN)
+        await callback.answer()
+        return
+
+    await callback.message.answer("🛡 *Панель модерации* — объявления ниже ⬇️", parse_mode=ParseMode.MARKDOWN)
+    for ad in pending:
+        ad_id, user_id_ad, username, photo_id, desc = ad
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Принять", callback_data=f"approve_{ad_id}"),
+             InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{ad_id}")]
+        ])
+        await callback.message.answer_photo(
+            photo=photo_id,
+            caption=f"📦 *Объявление #{ad_id}*\n👤 От: @{username}\n📝 {desc}",
+            reply_markup=keyboard,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    await callback.answer()
+
 async def main():
     print("🚀 Бот запущен!")
     await dp.start_polling(bot)
